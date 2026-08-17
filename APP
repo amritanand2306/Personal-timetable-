@@ -1,0 +1,599 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  Dimensions,
+  SafeAreaView,
+  StatusBar,
+  FlatList,
+  Alert,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
+
+export default function AnandSchedule() {
+  const [activeTab, setActiveTab] = useState('schedule');
+  const [habits, setHabits] = useState([]);
+  const [todayDate, setTodayDate] = useState(new Date().toISOString().split('T')[0]);
+  const [shootingLog, setShootingLog] = useState([]);
+  const [newShootingEntry, setNewShootingEntry] = useState('');
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const habitsData = await AsyncStorage.getItem('anand-habits-personalized');
+      const shootingData = await AsyncStorage.getItem('anand-shooting-log');
+
+      if (habitsData) {
+        setHabits(JSON.parse(habitsData));
+      } else {
+        initializeHabits();
+      }
+
+      if (shootingData) {
+        setShootingLog(JSON.parse(shootingData));
+      }
+    } catch (e) {
+      console.log('Load failed:', e);
+      initializeHabits();
+    }
+  };
+
+  const initializeHabits = () => {
+    const newHabits = [
+      { id: 1, name: '🧘 Morning meditation/stretching (10 mins)', time: '5:00-5:30 AM', category: 'morning', frequency: 'daily', completed: false },
+      { id: 2, name: '📚 Read one Computer Science concept (10 mins)', time: '5:30-6:30 AM', category: 'strong', frequency: 'daily', completed: false },
+      { id: 3, name: '📖 Accountancy - Weak Subject (1 hour)', time: '2:30-3:30 PM', category: 'weak', frequency: 'daily', completed: false },
+      { id: 4, name: '💻 Code/Tech Project Time (30 mins)', time: '3:30-4:00 PM', category: 'project', frequency: 'daily', completed: false },
+      { id: 5, name: '🎯 Shooting Practice (log below)', time: '4:00-7:00 PM or 5:00-8:00 PM', category: 'shooting', frequency: 'daily', completed: false },
+      { id: 6, name: '📊 Economics or Business Studies (1 hour)', time: '8:00-9:00 PM', category: 'weak', frequency: 'daily', completed: false },
+      { id: 7, name: '✏️ Painting Practice or English (30 mins)', time: '9:00-9:30 PM', category: 'strong', frequency: '4x/week', completed: false },
+      { id: 8, name: '⚡ Do ONE scary thing (discuss project/share idea) (15 mins)', time: '9:30-9:45 PM', category: 'challenge', frequency: 'daily', completed: false },
+      { id: 9, name: '📝 Journaling - Phoenix Log (15 mins)', time: '9:45-10:00 PM', category: 'reflect', frequency: 'daily', completed: false },
+      { id: 10, name: '🔄 Review weak subjects + quiz self (30 mins)', time: '10:00-10:30 PM', category: 'weak', frequency: '5x/week', completed: false },
+      { id: 11, name: '📱 Wind down - no screens (30 mins)', time: '10:30-11:00 PM', category: 'sleep', frequency: 'daily', completed: false },
+      { id: 12, name: '😴 Sleep', time: '11:15 PM onwards', category: 'sleep', frequency: 'daily', completed: false },
+    ];
+    setHabits(newHabits);
+    saveHabits(newHabits);
+  };
+
+  const saveHabits = async (data) => {
+    try {
+      await AsyncStorage.setItem('anand-habits-personalized', JSON.stringify(data));
+    } catch (e) {
+      console.log('Save habits failed:', e);
+    }
+  };
+
+  const saveShooting = async (data) => {
+    try {
+      await AsyncStorage.setItem('anand-shooting-log', JSON.stringify(data));
+    } catch (e) {
+      console.log('Save shooting failed:', e);
+    }
+  };
+
+  const toggleHabit = (habitId) => {
+    const updated = habits.map(h =>
+      h.id === habitId ? { ...h, completed: !h.completed } : h
+    );
+    setHabits(updated);
+    saveHabits(updated);
+  };
+
+  const addShootingEntry = () => {
+    if (newShootingEntry.trim()) {
+      const entry = {
+        id: Date.now(),
+        date: todayDate,
+        note: newShootingEntry,
+        time: new Date().toLocaleTimeString(),
+      };
+      const updated = [...shootingLog, entry];
+      setShootingLog(updated);
+      saveShooting(updated);
+      setNewShootingEntry('');
+      Alert.alert('Success', 'Shooting session logged!');
+    }
+  };
+
+  const deleteShootingEntry = (entryId) => {
+    const updated = shootingLog.filter(e => e.id !== entryId);
+    setShootingLog(updated);
+    saveShooting(updated);
+  };
+
+  const completedCount = habits.filter(h => h.completed).length;
+  const totalCount = habits.length;
+  const completionPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  const morningHabits = habits.filter(h => h.time.includes('5:'));
+  const afternoonHabits = habits.filter(h => h.time.includes('2:30') || h.time.includes('3:'));
+  const shootingHabits = habits.filter(h => h.category === 'shooting');
+  const eveningHabits = habits.filter(h => h.time.includes('8:') || h.time.includes('9:') || h.time.includes('10:'));
+
+  // Render Tab Navigation
+  const renderTabNavigation = () => (
+    <View style={styles.tabContainer}>
+      {[
+        { id: 'schedule', label: '📅 Schedule' },
+        { id: 'subjects', label: '📚 Subjects' },
+        { id: 'shooting', label: '🎯 Log' },
+        { id: 'tracker', label: '✅ Track' },
+      ].map(tab => (
+        <TouchableOpacity
+          key={tab.id}
+          onPress={() => setActiveTab(tab.id)}
+          style={[
+            styles.tabButton,
+            activeTab === tab.id && styles.tabButtonActive,
+          ]}
+        >
+          <Text style={[styles.tabButtonText, activeTab === tab.id && styles.tabButtonTextActive]}>
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // Schedule Tab
+  const renderScheduleTab = () => (
+    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <Text style={styles.sectionTitle}>🌅 Morning (5:00 - 6:30 AM)</Text>
+      {morningHabits.map(habit => renderHabitItem(habit))}
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>🏫 School (6:30 AM - 2:15 PM)</Text>
+      <View style={styles.infoBox}>
+        <Text style={styles.infoText}>Focus on classes. Pay attention in weak subjects. Take notes for evening revision.</Text>
+      </View>
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>🎯 Afternoon Free (2:30 - 4:00 PM)</Text>
+      {afternoonHabits.map(habit => renderHabitItem(habit))}
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>🎯 Shooting Practice (4:00 - 8:00 PM)</Text>
+      {shootingHabits.map(habit => renderHabitItem(habit))}
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>📚 Evening Study (8:00 - 11:00 PM)</Text>
+      {eveningHabits.map(habit => renderHabitItem(habit))}
+
+      <View style={styles.bottomSpacing} />
+    </ScrollView>
+  );
+
+  // Subjects Tab
+  const renderSubjectsTab = () => (
+    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <Text style={styles.sectionTitle}>🚨 WEAK SUBJECTS (Priority)</Text>
+
+      {[
+        { name: 'Accountancy', author: 'T.S. Gerawal', action: 'Do 5 double-entry problems daily' },
+        { name: 'Economics', author: 'Sandeep Garg', action: 'Solve 3 macro/statistics problems daily' },
+        { name: 'Business Studies', author: 'Sandeep Garg', action: 'Read 1 concept, make 2-3 line summaries' },
+      ].map((subject, idx) => (
+        <View key={idx} style={styles.subjectBox}>
+          <Text style={styles.subjectName}>{subject.name}</Text>
+          <Text style={styles.subjectAuthor}>Author: {subject.author}</Text>
+          <Text style={styles.subjectAction}>Action: {subject.action}</Text>
+        </View>
+      ))}
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>⭐ STRONG SUBJECTS</Text>
+
+      {[
+        { name: 'Computer Science with Python', author: 'Sumita Arora', action: 'Code 1 program daily, build projects' },
+        { name: 'English', author: 'Various', action: 'Read 1 passage daily, write reflections' },
+        { name: 'Painting', author: 'R.C. Luther', action: 'Paint 2-3x weekly, study Indian painting' },
+      ].map((subject, idx) => (
+        <View key={idx} style={styles.subjectBoxGreen}>
+          <Text style={styles.subjectName}>{subject.name}</Text>
+          <Text style={styles.subjectAuthor}>Author: {subject.author}</Text>
+          <Text style={styles.subjectAction}>Action: {subject.action}</Text>
+        </View>
+      ))}
+
+      <View style={styles.bottomSpacing} />
+    </ScrollView>
+  );
+
+  // Shooting Log Tab
+  const renderShootingTab = () => (
+    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <Text style={styles.sectionTitle}>Log Today's Shooting Session</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="E.g., '30 rounds, 8.2/10 accuracy, practiced breathing'"
+        placeholderTextColor="#888"
+        value={newShootingEntry}
+        onChangeText={setNewShootingEntry}
+      />
+
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={addShootingEntry}
+      >
+        <Text style={styles.addButtonText}>+ Log Session</Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Recent Sessions</Text>
+
+      {shootingLog.length > 0 ? (
+        shootingLog.slice().reverse().map(entry => (
+          <View key={entry.id} style={styles.logEntryBox}>
+            <View style={styles.logEntryHeader}>
+              <View>
+                <Text style={styles.logDate}>{entry.date}</Text>
+                <Text style={styles.logTime}>{entry.time}</Text>
+              </View>
+              <TouchableOpacity onPress={() => deleteShootingEntry(entry.id)}>
+                <Text style={styles.deleteButton}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.logNote}>{entry.note}</Text>
+          </View>
+        ))
+      ) : (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyText}>No shooting sessions logged yet</Text>
+        </View>
+      )}
+
+      <View style={styles.bottomSpacing} />
+    </ScrollView>
+  );
+
+  // Tracker Tab
+  const renderTrackerTab = () => (
+    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <View style={styles.progressBox}>
+        <Text style={styles.progressPercent}>{completionPercent}%</Text>
+        <View style={styles.progressBarBg}>
+          <View style={[styles.progressBar, { width: `${completionPercent}%` }]} />
+        </View>
+        <Text style={styles.progressText}>{completedCount} of {totalCount} habits completed</Text>
+      </View>
+
+      <Text style={styles.sectionTitle}>🌅 Morning</Text>
+      {morningHabits.map(habit => renderHabitCheckbox(habit))}
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>🎯 Afternoon</Text>
+      {afternoonHabits.map(habit => renderHabitCheckbox(habit))}
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>🎯 Shooting</Text>
+      {shootingHabits.map(habit => renderHabitCheckbox(habit))}
+
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>📚 Evening</Text>
+      {eveningHabits.map(habit => renderHabitCheckbox(habit))}
+
+      <View style={styles.goalBox}>
+        <Text style={styles.goalTitle}>🎯 Daily Goal: 80%+ Completion</Text>
+        <Text style={styles.goalText}>10-12 of 12 habits</Text>
+        <Text style={styles.goalText}>Build your 8-8-1 alignment daily</Text>
+      </View>
+
+      <View style={styles.bottomSpacing} />
+    </ScrollView>
+  );
+
+  const renderHabitItem = (habit) => (
+    <View key={habit.id} style={styles.habitItemBox}>
+      <Text style={styles.habitName}>{habit.name}</Text>
+      <Text style={styles.habitTime}>{habit.time}</Text>
+    </View>
+  );
+
+  const renderHabitCheckbox = (habit) => (
+    <TouchableOpacity
+      key={habit.id}
+      style={[styles.habitCheckbox, habit.completed && styles.habitChecked]}
+      onPress={() => toggleHabit(habit.id)}
+    >
+      <Text style={styles.habitCheckSymbol}>{habit.completed ? '✓' : '○'}</Text>
+      <View style={styles.habitCheckInfo}>
+        <Text style={[styles.habitCheckName, habit.completed && styles.habitCheckNameStrike]}>
+          {habit.name}
+        </Text>
+        <Text style={styles.habitCheckTime}>{habit.time}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#1e1b4b', '#581c87', '#1e1b4b']} style={styles.header}>
+        <Text style={styles.headerTitle}>Anand's Schedule</Text>
+        <Text style={styles.headerSubtitle}>8-8-1 | Phoenix Rising 🔥</Text>
+      </LinearGradient>
+
+      {renderTabNavigation()}
+
+      {activeTab === 'schedule' && renderScheduleTab()}
+      {activeTab === 'subjects' && renderSubjectsTab()}
+      {activeTab === 'shooting' && renderShootingTab()}
+      {activeTab === 'tracker' && renderTrackerTab()}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+  },
+  header: {
+    padding: 20,
+    paddingTop: 10,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#c9a4ff',
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 5,
+    paddingVertical: 8,
+    justifyContent: 'space-around',
+  },
+  tabButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#475569',
+  },
+  tabButtonActive: {
+    backgroundColor: '#a855f7',
+  },
+  tabButtonText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  tabButtonTextActive: {
+    color: '#fff',
+  },
+  tabContent: {
+    flex: 1,
+    padding: 15,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#e0e7ff',
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  habitItemBox: {
+    backgroundColor: '#1e293b',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#a855f7',
+  },
+  habitName: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  habitTime: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  infoBox: {
+    backgroundColor: '#1e293b',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
+  infoText: {
+    color: '#cbd5e1',
+    fontSize: 13,
+  },
+  subjectBox: {
+    backgroundColor: '#7f1d1d',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#dc2626',
+  },
+  subjectBoxGreen: {
+    backgroundColor: '#064e3b',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10b981',
+  },
+  subjectName: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  subjectAuthor: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  subjectAction: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  input: {
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    marginBottom: 12,
+    fontSize: 13,
+  },
+  addButton: {
+    backgroundColor: '#a855f7',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  logEntryBox: {
+    backgroundColor: '#1e293b',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10b981',
+  },
+  logEntryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  logDate: {
+    color: '#10b981',
+    fontWeight: 'bold',
+  },
+  logTime: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  deleteButton: {
+    color: '#ef4444',
+    fontWeight: 'bold',
+  },
+  logNote: {
+    color: '#cbd5e1',
+    fontSize: 13,
+    marginTop: 8,
+  },
+  emptyBox: {
+    backgroundColor: '#1e293b',
+    padding: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#94a3b8',
+  },
+  progressBox: {
+    backgroundColor: '#1e293b',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#a855f7',
+    alignItems: 'center',
+  },
+  progressPercent: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 10,
+  },
+  progressBarBg: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#0f172a',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#10b981',
+  },
+  progressText: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  habitCheckbox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: '#475569',
+  },
+  habitChecked: {
+    backgroundColor: '#064e3b',
+    borderColor: '#10b981',
+  },
+  habitCheckSymbol: {
+    fontSize: 18,
+    color: '#a855f7',
+    marginRight: 10,
+    fontWeight: 'bold',
+  },
+  habitCheckInfo: {
+    flex: 1,
+  },
+  habitCheckName: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  habitCheckNameStrike: {
+    textDecorationLine: 'line-through',
+    color: '#94a3b8',
+  },
+  habitCheckTime: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  goalBox: {
+    backgroundColor: '#1e293b',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+    marginBottom: 20,
+  },
+  goalTitle: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  goalText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  bottomSpacing: {
+    height: 40,
+  },
+});
